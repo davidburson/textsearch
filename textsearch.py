@@ -46,8 +46,8 @@ class GitignoreParser:
 
     def should_ignore(self, file_path: Path) -> bool:
         """Check if a file should be ignored based on .gitignore patterns."""
-        # Always include .env files regardless of .gitignore
-        if '.env' in file_path.name:  # contains .env anywhere in filename
+        # Always include files with ".env" in the filename regardless of .gitignore
+        if '.env' in file_path.name:
             return False
 
         try:
@@ -138,7 +138,7 @@ def is_binary_file(file_path: Path) -> bool:
         return True  # Assume binary if we can't read it
 
 
-def search_text_in_file(file_path: Path, search_texts: List[str]) -> List[Tuple[int, str, str]]:
+def search_text_in_file(file_path: Path, search_texts: List[str], case_sensitive: bool = True) -> List[Tuple[int, str, str]]:
     """
     Search for texts in a file and return matches with line numbers.
     Returns list of (line_number, line_content, matched_text) tuples.
@@ -149,8 +149,10 @@ def search_text_in_file(file_path: Path, search_texts: List[str]) -> List[Tuple[
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             for line_num, line in enumerate(f, 1):
                 line_stripped = line.rstrip('\n\r')
+                search_line = line_stripped if case_sensitive else line_stripped.lower()
+
                 for search_text in search_texts:
-                    if search_text in line_stripped:
+                    if search_text in search_line:
                         matches.append((line_num, line_stripped, search_text))
 
     except (IOError, OSError, PermissionError, UnicodeDecodeError) as e:
@@ -193,7 +195,7 @@ def get_applicable_parser(file_path: Path, parsers: dict) -> Optional[GitignoreP
     return applicable_parser
 
 
-def search_directory(directory: Path, search_texts: List[str]) -> dict:
+def search_directory(directory: Path, search_texts: List[str], case_sensitive: bool = True) -> dict:
     """
     Recursively search directory for text occurrences.
     Returns dict mapping file paths to their matches.
@@ -238,7 +240,7 @@ def search_directory(directory: Path, search_texts: List[str]) -> dict:
                 continue
 
             # Search for text in the file
-            matches = search_text_in_file(file_path, search_texts)
+            matches = search_text_in_file(file_path, search_texts, case_sensitive)
             if matches:
                 results[str(file_path)] = matches
 
@@ -301,17 +303,18 @@ Examples:
 
     # Prepare search texts
     search_texts = args.search_texts
-    if not args.case_sensitive:
+    case_sensitive = args.case_sensitive
+    if not case_sensitive:
         search_texts = [text.lower() for text in search_texts]
 
     print(f"Searching for: {', '.join(repr(text) for text in args.search_texts)}")
     print(f"In directory: {search_dir}")
-    print(f"Case sensitive: {args.case_sensitive}")
+    print(f"Case sensitive: {case_sensitive}")
     print()
 
     # Perform search
     try:
-        results = search_directory(search_dir, search_texts)
+        results = search_directory(search_dir, search_texts, case_sensitive)
     except KeyboardInterrupt:
         print("\nSearch interrupted by user")
         sys.exit(1)
